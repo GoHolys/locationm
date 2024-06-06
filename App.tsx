@@ -1,10 +1,9 @@
-import React, {useEffect, useState} from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  NativeModules,
   SafeAreaView,
   StyleSheet,
-  Text,
-  NativeModules,
-  Button,
+  Text
 } from 'react-native';
 
 import GetLocation, {
@@ -12,6 +11,7 @@ import GetLocation, {
   LocationErrorCode,
   isLocationError,
 } from 'react-native-get-location';
+import { readData, storeData } from './utils/asyncStorageUtils';
 
 const {GalleryModule} = NativeModules;
 
@@ -29,40 +29,43 @@ function App(): React.JSX.Element {
   const [location, setLocation] = useState<Location | null>();
   const [error, setError] = useState<LocationErrorCode | null>(null);
 
-  const requestLocation = () => {
+
+  const requestLocation = async () => {
     setLoading(true);
     setLocation(null);
     setError(null);
 
-    GetLocation.getCurrentPosition({
-      enableHighAccuracy: true,
-      timeout: 30000,
-      rationale: {
-        title: 'Location permission',
-        message: 'The app needs the permission to request your location.',
-        buttonPositive: 'Ok',
-      },
-    })
-      .then(newLocation => {
-        setLoading(false);
-        setLocation(newLocation);
-      })
-      .catch(ex => {
-        if (isLocationError(ex)) {
-          const {code, message} = ex;
-          console.warn(code, message);
-          setError(code);
-        } else {
-          console.warn(ex);
-        }
-        setLoading(false);
-        setLocation(null);
+    try {
+      const newLocation = await GetLocation.getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 30000,
+        rationale: {
+          title: 'Location permission',
+          message: 'The app needs the permission to request your location.',
+          buttonPositive: 'Ok',
+        },
       });
+
+      setLoading(false);
+      setLocation(newLocation);
+      await storeData('@locationInfo', JSON.stringify(newLocation));
+    } catch (ex) {
+      if (isLocationError(ex)) {
+        const {code, message} = ex;
+        console.warn(code, message);
+        setError(code);
+      } else {
+        console.warn(ex);
+      }
+      setLoading(false);
+      setLocation(null);
+    }
   };
 
   useEffect(() => {
     const intervalId = setInterval(() => {
       requestLocation();
+      readData('@locationInfo');
     }, 5000);
     return () => clearInterval(intervalId);
   }, []);
