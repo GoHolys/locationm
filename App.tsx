@@ -1,105 +1,118 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
-import React from 'react';
-import type {PropsWithChildren} from 'react';
+import React, {useEffect, useState} from 'react';
 import {
   SafeAreaView,
-  ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
-  useColorScheme,
-  View,
+  NativeModules,
+  Button,
 } from 'react-native';
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+import GetLocation, {
+  Location,
+  LocationErrorCode,
+  isLocationError,
+} from 'react-native-get-location';
 
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
+const {GalleryModule} = NativeModules;
 
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-}
+const openGallery = async () => {
+  try {
+    const result = await GalleryModule.openGallery();
+    console.log(result);
+  } catch (error) {
+    console.error(error);
+  }
+};
 
 function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+  const [loading, setLoading] = useState(false);
+  const [location, setLocation] = useState<Location | null>();
+  const [error, setError] = useState<LocationErrorCode | null>(null);
 
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
+  const requestLocation = () => {
+    setLoading(true);
+    setLocation(null);
+    setError(null);
+
+    GetLocation.getCurrentPosition({
+      enableHighAccuracy: true,
+      timeout: 30000,
+      rationale: {
+        title: 'Location permission',
+        message: 'The app needs the permission to request your location.',
+        buttonPositive: 'Ok',
+      },
+    })
+      .then(newLocation => {
+        setLoading(false);
+        setLocation(newLocation);
+      })
+      .catch(ex => {
+        if (isLocationError(ex)) {
+          const {code, message} = ex;
+          console.warn(code, message);
+          setError(code);
+        } else {
+          console.warn(ex);
+        }
+        setLoading(false);
+        setLocation(null);
+      });
   };
 
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      requestLocation();
+    }, 5000);
+    return () => clearInterval(intervalId);
+  }, []);
+
+  if (error) {
+    <SafeAreaView>
+      <Text style={styles.title}>
+        Couldn't get the location an error occured
+      </Text>
+    </SafeAreaView>;
+  }
+
+  if (loading) {
+    return (
+      <SafeAreaView>
+        <Text style={styles.title}>Loading Location</Text>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
+    <SafeAreaView style={styles.container}>
+      <Text style={styles.title}>Location Details</Text>
+      {Object.entries(location || {}).map(([key, value]) => (
+        <Text key={key} style={styles.listItem}>
+          {key} : {value}
+        </Text>
+      ))}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  title: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  container: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    rowGap: 30,
+  },
   sectionContainer: {
     marginTop: 32,
     paddingHorizontal: 24,
+  },
+  listItem: {
+    fontSize: 20,
   },
   sectionTitle: {
     fontSize: 24,
